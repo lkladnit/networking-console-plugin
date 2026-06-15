@@ -43,5 +43,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-results
-          path: cypress/gui-test-screenshots/
+          path: ui-tests-cy/gui-test-screenshots/
           retention-days: 7
