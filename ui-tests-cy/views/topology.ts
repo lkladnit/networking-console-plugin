@@ -163,3 +163,32 @@ export const expectPrototypeSvgText = (name: string): void => {
 export const expectPrototypeSvgTextAbsent = (name: string): void => {
   expectPrototypeSvgTexts((texts) => expect(texts).to.not.include(name));
 };
+
+// ---------------------------------------------------------------------------
+// Prototype spec gating
+// ---------------------------------------------------------------------------
+
+const PROTOTYPE_REACHABLE = Cypress.env('PROTOTYPE_TOPOLOGY_REACHABLE');
+
+/**
+ * The prototype lives on an external host (vercel). CI agents without external
+ * egress time out loading it for the full pageLoadTimeout; skip those specs
+ * instead of failing. Reachability is probed once per run via cy.request.
+ */
+export const prototypeDescribe = (name: string, fn: () => void): void => {
+  (PROTOTYPE_REACHABLE === false ? describe.skip : describe)(name, function () {
+    before(function () {
+      cy.request({
+        failOnStatusCode: false,
+        timeout: 30000,
+        url: PROTOTYPE_TOPOLOGY_URL,
+      }).then((res) => {
+        if (res.status >= 400) {
+          cy.log(`Prototype unreachable (status ${res.status}) — skipping ${name}`);
+          cy.wrap(null).then(() => this.skip());
+        }
+      });
+    });
+    fn();
+  });
+};

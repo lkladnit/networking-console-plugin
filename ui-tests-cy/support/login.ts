@@ -3,6 +3,7 @@ import { MINUTE } from '../utils/const/base';
 const KUBEADMIN_USERNAME = 'kubeadmin';
 const KUBEADMIN_IDP = 'kube:admin';
 const TOUR_DISMISS = '[data-test="tour-step-footer-secondary"]';
+const USER_MENU = '[data-test="user-dropdown"], [data-test="user-dropdown-toggle"], #page-sidebar';
 const TOUR_WAIT_MS = 20_000;
 const TOUR_POLL_MS = 500;
 
@@ -52,29 +53,56 @@ const dismissWelcomeTourIfPresent = () => {
 
 Cypress.Commands.add('dismissWelcomeTourIfPresent', dismissWelcomeTourIfPresent);
 
-Cypress.Commands.add('login', (provider: string, username: string, password: string) => {
-  cy.visit('');
+Cypress.Commands.add('login', (provider?: string, username?: string, password?: string) => {
+  const usr = username || KUBEADMIN_USERNAME;
+  const pwd = password || Cypress.env('BRIDGE_KUBEADMIN_PASSWORD');
+  const idp = provider || KUBEADMIN_IDP;
 
-  // In no-auth mode (hot-cluster CI with bearer-token), there's no login page.
-  // Detect by checking if we land directly on the console dashboard.
-  cy.url({ timeout: 3 * MINUTE }).then((url) => {
-    if (url.includes('/dashboards') || url.includes('/k8s/') || url.includes('/overview')) {
-      cy.log('No-auth mode detected — skipping login');
-    } else if (url.includes('oauth') || url.includes('login') || url.includes('dex')) {
-      const usr = username || KUBEADMIN_USERNAME;
-      const pwd = password || Cypress.env('BRIDGE_KUBEADMIN_PASSWORD');
-      const idp = provider || KUBEADMIN_IDP;
+  expect(pwd, 'BRIDGE_KUBEADMIN_PASSWORD (or password arg) must be set')
+    .to.be.a('string')
+    .and.not.be.empty;
 
+  const baseUrl = Cypress.config('baseUrl') || '';
+  const oauthOrigin = baseUrl
+    .replace('console-openshift-console', 'oauth-openshift')
+    .replace(/\/$/, '');
+
+  cy.visit('/');
+  cy.get('body', { timeout: 30_000 }).should('be.visible');
+  cy.get('body').then(($body) => {
+    const view = $body[0]?.ownerDocument?.defaultView as {
+      SERVER_FLAGS?: { authDisabled?: boolean };
+    } & Window | null;
+    const flags = view?.SERVER_FLAGS;
+    if (flags?.authDisabled) {
+      cy.log('authDisabled — skipping OAuth login');
+      return;
+    }
+    // Already authenticated? User menu is present on the console shell.
+    if ($body.find(USER_MENU).length > 0) {
+      cy.log('Already authenticated — skipping OAuth login');
+      dismissWelcomeTourIfPresent();
+      return;
+    }
+    // Not authenticated — need OAuth. Use window check as secondary authDisabled gate
+    // before forcing a fresh OAuth redirect (clear stale session cookie, revisit).
+    cy.window().then((win) => {
+      if (win.SERVER_FLAGS?.authDisabled) {
+        cy.log('authDisabled — skipping OAuth login');
+        return;
+      }
+      cy.clearCookie('openshift-session-token');
+      cy.visit('/');
       cy.origin(
-        url.split('/').slice(0, 3).join('/'),
+        oauthOrigin,
         { args: { idp, pwd, usr } },
         ({ idp: originIdp, pwd: originPwd, usr: originUsr }) => {
           cy.get('body', { timeout: 180000 }).should('be.visible');
-          cy.get('body').then(($body) => {
-            if ($body.find('#inputUsername').length === 0) {
-              if ($body.text().includes(originIdp)) {
+          cy.get('body').then(($originBody) => {
+            if ($originBody.find('#inputUsername').length === 0) {
+              if ($originBody.text().includes(originIdp)) {
                 cy.contains('a', originIdp).click();
-              } else if ($body.text().includes('kubeadmin')) {
+              } else if ($originBody.text().includes('kubeadmin')) {
                 cy.contains('a', 'kubeadmin').click();
               } else {
                 cy.get('a').first().click();
@@ -82,25 +110,35 @@ Cypress.Commands.add('login', (provider: string, username: string, password: str
             }
           });
           cy.get('#inputUsername', { timeout: 180000 }).should('be.visible');
+          // Clear any prefilled/IDP-label value so we always submit kubeadmin, not kube:admin.
+          cy.get('#inputUsername').clear();
           cy.get('#inputUsername').type(originUsr);
+          cy.get('#inputPassword').clear();
           cy.get('#inputPassword').type(originPwd, { log: false });
           cy.get('button[type=submit]').click();
         },
       );
-    }
+      cy.url({ timeout: 3 * MINUTE }).should('include', 'console-openshift-console');
+      cy.get(USER_MENU, { timeout: 2 * MINUTE }).should('exist');
+      dismissWelcomeTourIfPresent();
+    });
   });
-
-  // Wait for console to be loaded (works in both auth and no-auth modes)
-  cy.get('body', { timeout: 3 * MINUTE }).should('be.visible');
-  dismissWelcomeTourIfPresent();
 });
 
 Cypress.Commands.add('logout', () => {
-  cy.get('body').then(($body) => {
-    if ($body.find('[data-test="user-dropdown"]').length) {
+  cy.window().then((win) => {
+    if (win.SERVER_FLAGS?.authDisabled) {
+      return;
+    }
+
+    cy.get('body').then(($body) => {
+      if ($body.find('[data-test="user-dropdown"]').length === 0) {
+        cy.log('logout skipped: user menu not present');
+        return;
+      }
       cy.get('[data-test="user-dropdown"]').click();
       cy.get('[data-test="log-out"]').should('be.visible');
       cy.get('[data-test="log-out"]').click({ force: true });
-    }
+    });
   });
 });

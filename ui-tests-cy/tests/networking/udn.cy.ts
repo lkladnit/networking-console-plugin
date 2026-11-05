@@ -31,7 +31,7 @@ adminOnlyDescribe('Test UDN', () => {
     cy.byTestID('create-udn-submit').click();
     cy.checkTitle(UDN_CLST);
     checkActionMenu('ClusterUserDefinedNetwork');
-    cy.contains(brCrumbItem, 'ClusterUserDefinedNetworks').find('a').eq(0).click();
+    cy.contains(brCrumbItem, 'UserDefinedNetworks').find('a').eq(0).click();
   });
 
   it('delete CUDN', () => {
@@ -39,7 +39,7 @@ adminOnlyDescribe('Test UDN', () => {
     cy.checkTitle('UserDefinedNetworks', MINUTE);
     cy.contains('[data-label="name"]', UDN_CLST).find('a').click();
     cy.byButtonText('Actions').click();
-    cy.get('[data-test-action="Delete ClusterUserDefinedNetwork"]').click();
+    cy.contains('button', 'Delete ClusterUserDefinedNetwork').click();
     cy.byTestID('confirm-action').click();
     cy.contains(UDN_CLST).should('not.exist');
   });

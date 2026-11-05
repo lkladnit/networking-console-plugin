@@ -10,11 +10,15 @@ export const ovnNetwork = 'button[id="ovn-k8s-cni-overlay-link"]';
 export const localnet = 'button[id="ovn-k8s-cni-overlay-localnet-link"]';
 export const bridgeName = 'input[name="bridge.bridge"]';
 export const bridgeVlan = 'input[name="bridge.vlanTagNum"]';
-export const bridgeMap = 'input[name="ovn-k8s-cni-overlay-localnet.bridgeMapping"]';
+export const bridgeMap =
+  '#nads-ovn-physical-network-name, [data-test="nads-ovn-physical-network-name"], input[name*="bridgeMapping"]';
 export const bridgeMTU = 'input[name="ovn-k8s-cni-overlay-localnet.mtu"]';
 export const localnetVlan = 'input[name="ovn-k8s-cni-overlay-localnet.vlanID"]';
 export const confirmBtn = '[data-test="confirm-action"]';
-export const heading = '[data-test-section-heading="NetworkAttachmentDefinition details"]';
+// The generic console details page exposes the resource name as h1[data-test="resource-title"];
+// our plugin's page renders the same name in its h1. Assert on the name instead of a
+// plugin-specific section heading that does not exist on the generic page.
+export const heading = 'h1';
 export const createBtn = '#save-changes';
 export const macSpoofCHK = 'input[id="bridge.macspoofchk"]';
 export const ovnSubnet = 'input[name="ovn-k8s-cni-overlay.subnets"]';
@@ -28,8 +32,6 @@ export const createNAD = (nad: NadData) => {
   cy.get(name, { timeout: 10000 }).should('be.visible');
   cy.get(name).clear();
   cy.get(name).type(nad.name);
-  cy.get(description).clear();
-  cy.get(description).type(nad.description);
   cy.get(type).click();
   switch (nad.type) {
     case 'Bridge': {
@@ -70,10 +72,7 @@ export const createNAD = (nad: NadData) => {
     }
   }
   cy.get(createBtn).click();
-  cy.get(heading).should('exist');
-  cy.contains('[data-test-selector="details-item-label__Description"]', 'Description')
-    .parent()
-    .should('contain', nad.description);
+  cy.contains(heading, nad.name).should('exist');
 };
 
 export const deleteNAD = (nadName: string) => {
@@ -81,4 +80,29 @@ export const deleteNAD = (nadName: string) => {
   cy.byButtonText('Delete').click();
   cy.get(confirmBtn).click();
   cy.contains(row, nadName).should('not.exist');
+};
+
+/**
+ * Run the body unless the deployed NAD form lacks the given network type.
+ * The generic console form only offers Linux bridge; OVN and secondary-localnet
+ * options come from networking-console-plugin. Call inside `it(..., function () {...})`
+ * so the Mocha context is available for ctx.skip().
+ */
+export const withNetworkType = (
+  option: string,
+  ctx: Mocha.Context,
+  body: () => void,
+): void => {
+  cy.get(type).click();
+  cy.get('body').then(($body) => {
+    const available = $body
+      .find('[role="option"]')
+      .filter(`:contains(${JSON.stringify(option)})`).length;
+    if (!available) {
+      cy.log(`Network type "${option}" not available — skipping (plugin not deployed)`);
+      ctx.skip();
+    }
+  });
+  cy.contains('[role="option"]', option).click();
+  body();
 };

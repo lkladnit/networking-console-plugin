@@ -82,7 +82,12 @@ module.exports = (on, config) => {
   config.env.BRIDGE_KUBEADMIN_PASSWORD =
     process.env.BRIDGE_KUBEADMIN_PASSWORD ?? config.env.BRIDGE_KUBEADMIN_PASSWORD;
   config.env.TEST_NS = process.env.TEST_NS ?? config.env.TEST_NS;
+  config.env.NAD_NS = process.env.NAD_NS ?? config.env.NAD_NS;
   config.env.UDN_NS = process.env.UDN_NS ?? config.env.UDN_NS;
+  config.env.EMPTY_NS = process.env.EMPTY_NS ?? config.env.EMPTY_NS;
+  config.env.CUDN_NS = process.env.CUDN_NS ?? config.env.CUDN_NS;
+  config.env.TOPO_NS = process.env.TOPO_NS ?? config.env.TOPO_NS;
+  config.env.LOCALNET_NS = process.env.LOCALNET_NS ?? config.env.LOCALNET_NS;
   config.env.HIDE_XHR = process.env.HIDE_XHR ?? config.env.HIDE_XHR;
   config.env.ALLOW_CLUSTER_WRITES =
     process.env.ALLOW_CLUSTER_WRITES ?? config.env.ALLOW_CLUSTER_WRITES;

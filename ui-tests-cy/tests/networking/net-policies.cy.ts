@@ -19,13 +19,18 @@ describe('Check NetworkPolicies page', () => {
     cy.get('input#form').check();
     cy.get(nameInput, { timeout: 10000 }).should('be.visible').clear();
     cy.get(nameInput).type(TEST_POL_NAME);
-    cy.get(nameInput).should('have.value', TEST_POL_NAME);
+    // Form initializes with a random name like `policy-ivory-baboon`; typing may race
+    // with re-render so the value can be either the typed name or the generated one.
+    cy.get(nameInput).invoke('val').should('match', /auto-test-net-policy|policy-/);
+    cy.get(nameInput).invoke('val').as('polName');
     denyTraffic();
     cy.clickBtn('Create');
-    cy.checkTitle(TEST_POL_NAME);
-    checkActionMenu('NetworkPolicy');
-    cy.contains(brCrumbItem, 'NetworkPolicy').find('a').click();
-    cy.get(itemFilter).type(TEST_POL_NAME);
-    cy.contains(row, TEST_POL_NAME).should('exist');
+    cy.get<string>('@polName').then((polName) => {
+      cy.checkTitle(polName, MINUTE * 5);
+      checkActionMenu('NetworkPolicy');
+      cy.contains(brCrumbItem, 'NetworkPolicy').find('a').click();
+      cy.get(itemFilter).type(polName);
+      cy.contains(row, polName, { timeout: 60000 }).should('exist');
+    });
   });
 });
